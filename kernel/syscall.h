@@ -20,3 +20,7 @@
 #define SYS_link   19
 #define SYS_mkdir  20
 #define SYS_close  21
+
+// New syscalls for Lab1
+#define SYS_sysinfo 101
+#define SYS_procinfo 102

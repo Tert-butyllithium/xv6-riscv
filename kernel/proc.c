@@ -681,3 +681,19 @@ procdump(void)
     printf("\n");
   }
 }
+
+// Lab1: get number of active proc
+int get_proc_cnt(void)
+{
+  printf("testteststtest==============\n");
+  int res = 0, i;
+  for (i = 0; i < NPROC; i++)
+  {
+      if (proc[i].state == RUNNABLE || proc[i].state == RUNNING 
+        || proc[i].state == SLEEPING || proc[i].state == ZOMBIE)
+      {
+        res++;
+      }
+  }
+  return res;
+}

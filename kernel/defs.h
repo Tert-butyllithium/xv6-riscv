@@ -9,6 +9,8 @@ struct sleeplock;
 struct stat;
 struct superblock;
 
+struct pinfo;
+
 // bio.c
 void            binit(void);
 struct buf*     bread(uint, uint);
@@ -184,6 +186,10 @@ void            plic_complete(int);
 void            virtio_disk_init(void);
 void            virtio_disk_rw(struct buf *, int);
 void            virtio_disk_intr(void);
+
+// lab1.c
+int             sysinfo(int param);
+int             procinfo(struct pinfo *in);
 
 // number of elements in fixed-size array
 #define NELEM(x) (sizeof(x)/sizeof((x)[0]))
