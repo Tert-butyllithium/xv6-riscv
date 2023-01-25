@@ -55,6 +55,7 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
+      p->syscall_cnt = 0;
   }
 }
 
@@ -168,6 +169,7 @@ freeproc(struct proc *p)
   p->chan = 0;
   p->killed = 0;
   p->xstate = 0;
+  p->syscall_cnt = 0;
   p->state = UNUSED;
 }
 
@@ -685,7 +687,6 @@ procdump(void)
 // Lab1: get number of active proc
 int get_proc_cnt(void)
 {
-  printf("testteststtest==============\n");
   int res = 0, i;
   for (i = 0; i < NPROC; i++)
   {
