@@ -6,6 +6,8 @@
 #include "proc.h"
 #include "defs.h"
 
+#define DEFAULT_TKZ 10000
+
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -55,6 +57,9 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
+#if defined(LOTTERY) || defined (STRIDE)
+      p->tkz = DEFAULT_TKZ;
+#endif 
   }
 }
 
@@ -434,6 +439,42 @@ wait(uint64 addr)
   }
 }
 
+
+
+#if defined(LOTTERY) || defined (STRIDE)
+
+unsigned short lfsr = 0xACE1u;
+unsigned short bit;
+unsigned short rand()
+{
+  bit = ((lfsr >> 0) ^ (lfsr >> 2) ^ (lfsr >> 3) ^ (lfsr >> 5)) & 1;
+  return lfsr = (lfsr >> 1) | (bit << 15);
+}
+
+static unsigned rand_in(unsigned maxnum){
+  return rand() % maxnum;
+}
+
+static uint64 get_tkz_sum(){
+  uint64 sum = 0;
+  struct proc *p;
+
+  for(p = proc; p < &proc[NPROC]; p++){
+    sum += p->tkz;
+  }
+
+  return sum;
+}
+
+
+
+inline static void scheduler_ltry(void){
+
+}
+
+#endif 
+
+
 // Per-CPU process scheduler.
 // Each CPU calls scheduler() after setting itself up.
 // Scheduler never returns.  It loops, doing:
@@ -453,6 +494,11 @@ scheduler(void)
     intr_on();
 
     for(p = proc; p < &proc[NPROC]; p++) {
+#if defined(LOTTERY) 
+
+#elif defined (STRIDE)
+
+#else
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
         // Switch to chosen process.  It is the process's job
@@ -467,6 +513,9 @@ scheduler(void)
         c->proc = 0;
       }
       release(&p->lock);
+#endif 
+
+
     }
   }
 }
@@ -680,4 +729,31 @@ procdump(void)
     printf("%d %s %s", p->pid, state, p->name);
     printf("\n");
   }
+}
+
+int sched_stat(void){
+#if defined(LOTTERY) || defined (STRIDE)
+  struct proc* p = myproc();
+  printf("%d(%s): tickets: %d, ticks: %d", p->pid,p->name,p->tkz,p->ticks);
+  return 0;
+#else
+  printf("fetal: sched_statistics not defined LOTTERY or STRIDE!");
+  return 0;
+#endif 
+}
+
+
+int sched_tick(int tk){
+#if defined(LOTTERY) || defined (STRIDE)
+  struct proc* p = myproc();
+  if(tk > 10000){
+    printf("error: tickets should not exceed 10000\n");
+    return 0;
+  }
+  p->tkz = tk;
+  return 0;
+#else
+  printf("fetal: sched_ticket not defined LOTTERY or STRIDE!");
+  return 0;
+#endif 
 }

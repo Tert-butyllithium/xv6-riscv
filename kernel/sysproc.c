@@ -89,3 +89,15 @@ sys_uptime(void)
   release(&tickslock);
   return xticks;
 }
+
+uint64 sys_sched_stat(void)
+{
+  return sched_stat();
+}
+
+uint64 sys_sched_tick(void)
+{
+  int tk;
+  argint(0, &tk);
+  return sched_tick(tk);
+}
