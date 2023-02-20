@@ -7,6 +7,8 @@
 #include "defs.h"
 
 #define DEFAULT_TKZ 100
+#define STRIDE_K 10000
+
 
 struct cpu cpus[NCPU];
 
@@ -57,8 +59,12 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
-      p->tkz = DEFAULT_TKZ;
-      p->ticks = 0;
+//       p->tkz = DEFAULT_TKZ;
+//       p->ticks = 0;
+// #ifdef STRIDE
+//       p->pass = STRIDE_K/DEFAULT_TKZ;
+// #endif
+
   }
 }
 
@@ -130,6 +136,11 @@ found:
   p->state = USED;
   p->tkz = DEFAULT_TKZ;
   p->ticks = 0;
+#ifdef STRIDE
+  p->pass = 0;
+  p->pass_step = STRIDE_K/DEFAULT_TKZ;
+#endif
+
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -442,7 +453,9 @@ wait(uint64 addr)
 
 
 
-#if defined(LOTTERY) || defined (STRIDE)
+#if defined(LOTTERY)
+
+#include "mtwister.h"
 
 unsigned short lfsr = 0xACE1u;
 unsigned short bit;
@@ -461,14 +474,16 @@ static unsigned get_tkz_sum(){
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++){
+    acquire(&p->lock);
     if(p->state==RUNNABLE)
         sum += p->tkz;
+    release(&p->lock);
   }
 
   return sum;
 }
-
 #endif 
+
 
 
 // Per-CPU process scheduler.
@@ -483,51 +498,97 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
-#if defined(LOTTERY) || defined (STRIDE)
-  unsigned golden_tk; 
-  unsigned tkz_tot;
+#if defined(LOTTERY)
+  long golden_tk; 
+  unsigned long tkz_tot;
+  unsigned long sum;
 #endif 
+
+#ifdef STRIDE
+  unsigned int cur_pass;
+  struct proc* ans;
+#endif
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-#if defined(LOTTERY) || defined (STRIDE)
-    unsigned sum = get_tkz_sum();
+#ifdef STRIDE
+    cur_pass = STRIDE_K;
+    ans = (void*) 0;
+
+    for(p = proc; p < &proc[NPROC]; p++){
+      acquire(&p->lock);
+      if(p->state==RUNNABLE){
+
+        if (p->pass < cur_pass){
+          cur_pass = p->pass;
+          ans = p;
+        }
+      }
+      release(&p->lock);
+    }
+    
+
+    if (ans){
+      p = ans;
+      // printf("%p\n",p);
+
+      acquire(&p->lock);
+
+      p->state = RUNNING;
+      p->ticks++;
+      p->pass += p->pass_step;
+
+      c->proc = p;
+
+      swtch(&c->context, &p->context);
+      c->proc = 0;
+      release(&p->lock);
+    }
+
+
+#else
+
+#if defined(LOTTERY) 
+    sum = get_tkz_sum();
     golden_tk = rand_in(sum);
+    // golden_tk = genRandLong(&r) % sum;
+
     tkz_tot = 0;
-    // if(sum)
-    //   printf("sum: %d, picked: %d \n",sum, golden_tk);
 #endif 
     for(p = proc; p < &proc[NPROC]; p++) {
 
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
-#if defined(LOTTERY) 
+#if defined(LOTTERY)
         tkz_tot += p->tkz;
         if(sum && golden_tk > tkz_tot){
           release(&p->lock);
           continue;
         }
-#elif defined (STRIDE)
-        printf("shouldn't go here!");
 #endif
 
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
-        c->proc = p;
         p->ticks++;
+        c->proc = p;
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
-// #endif 
+
+#ifdef LOTTERY
+        release(&p->lock);
+        break;
+#endif
       }
       release(&p->lock);
     }
+#endif // end STRIDE
   }
 }
 
@@ -763,6 +824,14 @@ int sched_tick(int tk){
     return 0;
   }
   p->tkz = tk;
+
+#ifdef STRIDE
+  if(tk){
+    p->pass = 0;
+    p->pass_step = STRIDE_K / tk;
+  }
+#endif
+
 #endif
   return 0;
 }
