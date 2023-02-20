@@ -95,10 +95,8 @@ struct proc {
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
 
-  #if defined(LOTTERY) || defined (STRIDE)
   uint32 tkz;                  // tickets for lottery or stride scheduling
   uint32 ticks;                // ticks that it be used
-  #endif 
 
   // these are private to the process, so p->lock need not be held.
   uint64 kstack;               // Virtual address of kernel stack

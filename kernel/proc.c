@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-#define DEFAULT_TKZ 10000
+#define DEFAULT_TKZ 100
 
 struct cpu cpus[NCPU];
 
@@ -57,9 +57,8 @@ procinit(void)
       initlock(&p->lock, "proc");
       p->state = UNUSED;
       p->kstack = KSTACK((int) (p - proc));
-#if defined(LOTTERY) || defined (STRIDE)
       p->tkz = DEFAULT_TKZ;
-#endif 
+      p->ticks = 0;
   }
 }
 
@@ -129,6 +128,8 @@ allocproc(void)
 found:
   p->pid = allocpid();
   p->state = USED;
+  p->tkz = DEFAULT_TKZ;
+  p->ticks = 0;
 
   // Allocate a trapframe page.
   if((p->trapframe = (struct trapframe *)kalloc()) == 0){
@@ -455,21 +456,16 @@ static unsigned rand_in(unsigned maxnum){
   return rand() % maxnum;
 }
 
-static uint64 get_tkz_sum(){
-  uint64 sum = 0;
+static unsigned get_tkz_sum(){
+  unsigned sum = 0;
   struct proc *p;
 
   for(p = proc; p < &proc[NPROC]; p++){
-    sum += p->tkz;
+    if(p->state==RUNNABLE)
+        sum += p->tkz;
   }
 
   return sum;
-}
-
-
-
-inline static void scheduler_ltry(void){
-
 }
 
 #endif 
@@ -487,35 +483,50 @@ scheduler(void)
 {
   struct proc *p;
   struct cpu *c = mycpu();
+#if defined(LOTTERY) || defined (STRIDE)
+  unsigned golden_tk; 
+  unsigned tkz_tot;
+#endif 
   
   c->proc = 0;
   for(;;){
     // Avoid deadlock by ensuring that devices can interrupt.
     intr_on();
-
+#if defined(LOTTERY) || defined (STRIDE)
+    unsigned sum = get_tkz_sum();
+    golden_tk = rand_in(sum);
+    tkz_tot = 0;
+    // if(sum)
+    //   printf("sum: %d, picked: %d \n",sum, golden_tk);
+#endif 
     for(p = proc; p < &proc[NPROC]; p++) {
-#if defined(LOTTERY) 
 
-#elif defined (STRIDE)
-
-#else
       acquire(&p->lock);
       if(p->state == RUNNABLE) {
+#if defined(LOTTERY) 
+        tkz_tot += p->tkz;
+        if(sum && golden_tk > tkz_tot){
+          release(&p->lock);
+          continue;
+        }
+#elif defined (STRIDE)
+        printf("shouldn't go here!");
+#endif
+
         // Switch to chosen process.  It is the process's job
         // to release its lock and then reacquire it
         // before jumping back to us.
         p->state = RUNNING;
         c->proc = p;
+        p->ticks++;
         swtch(&c->context, &p->context);
 
         // Process is done running for now.
         // It should have changed its p->state before coming back.
         c->proc = 0;
+// #endif 
       }
       release(&p->lock);
-#endif 
-
-
     }
   }
 }
@@ -732,14 +743,15 @@ procdump(void)
 }
 
 int sched_stat(void){
-#if defined(LOTTERY) || defined (STRIDE)
-  struct proc* p = myproc();
-  printf("%d(%s): tickets: %d, ticks: %d", p->pid,p->name,p->tkz,p->ticks);
+  struct proc* p;
+  for(p = proc; p < &proc[NPROC]; p++){
+      if (p->state == RUNNABLE || p->state == RUNNING 
+        || p->state == SLEEPING || p->state == ZOMBIE)
+      {
+        printf("%d(%s): tickets: %d, ticks: %d\n", p->pid,p->name,p->tkz,p->ticks);
+      }
+  }
   return 0;
-#else
-  printf("fetal: sched_statistics not defined LOTTERY or STRIDE!");
-  return 0;
-#endif 
 }
 
 
@@ -751,9 +763,6 @@ int sched_tick(int tk){
     return 0;
   }
   p->tkz = tk;
+#endif
   return 0;
-#else
-  printf("fetal: sched_ticket not defined LOTTERY or STRIDE!");
-  return 0;
-#endif 
 }
