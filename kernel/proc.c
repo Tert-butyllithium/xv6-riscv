@@ -9,7 +9,6 @@
 #define DEFAULT_TKZ 10
 #define STRIDE_K 10000
 
-
 struct cpu cpus[NCPU];
 
 struct proc proc[NPROC];
@@ -520,7 +519,7 @@ scheduler(void)
       acquire(&p->lock);
       if(p->state==RUNNABLE){
 
-        if (p->pass < cur_pass){
+        if ((!ans) || p->pass < cur_pass){
           cur_pass = p->pass;
           ans = p;
         }
