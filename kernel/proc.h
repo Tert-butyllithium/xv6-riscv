@@ -95,12 +95,12 @@ struct proc {
   // wait_lock must be held when using this:
   struct proc *parent;         // Parent process
 
-  uint32 tkz;                  // tickets for lottery or stride scheduling
-  uint32 ticks;                // ticks that it be used
+  uint64 tkz;                  // tickets for lottery or stride scheduling
+  uint64 ticks;                // ticks that it be used
 
 #ifdef STRIDE
-  uint32 pass;                 // pass for stride scheduling
-  uint32 pass_step;
+  uint64 pass;                 // pass for stride scheduling
+  uint64 pass_step;
 #endif
 
   // these are private to the process, so p->lock need not be held.

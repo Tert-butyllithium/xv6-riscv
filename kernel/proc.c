@@ -6,7 +6,7 @@
 #include "proc.h"
 #include "defs.h"
 
-#define DEFAULT_TKZ 100
+#define DEFAULT_TKZ 10
 #define STRIDE_K 10000
 
 
@@ -504,7 +504,7 @@ scheduler(void)
 #endif 
 
 #ifdef STRIDE
-  unsigned int cur_pass;
+  uint64 cur_pass;
   struct proc* ans;
 #endif
   
@@ -545,9 +545,8 @@ scheduler(void)
       c->proc = 0;
       release(&p->lock);
     }
-
-
-#else
+    else{
+#endif //STRIDE
 
 #if defined(LOTTERY) 
     sum = get_tkz_sum();
@@ -586,6 +585,8 @@ scheduler(void)
 #endif
       }
       release(&p->lock);
+    }
+#ifdef STRIDE
     }
 #endif // end STRIDE
   }
