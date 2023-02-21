@@ -455,7 +455,6 @@ wait(uint64 addr)
 
 #if defined(LOTTERY)
 
-#include "mtwister.h"
 
 unsigned short lfsr = 0xACE1u;
 unsigned short bit;
@@ -552,7 +551,7 @@ scheduler(void)
 
 #if defined(LOTTERY) 
     sum = get_tkz_sum();
-    golden_tk = rand_in(sum);
+    golden_tk = rand_in(sum) + 1;
     // golden_tk = genRandLong(&r) % sum;
 
     tkz_tot = 0;
